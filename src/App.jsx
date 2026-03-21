@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import SessionForm from './components/SessionForm'
 import SessionResult from './components/SessionResult'
 import SessionHistory from './components/SessionHistory'
+import Stats from './components/Stats'
 
 const STORAGE_KEY = 'badminton-sessions'
 
@@ -22,6 +23,8 @@ export default function App() {
   const [sessions, setSessions] = useState(loadSessions)
   const [currentSession, setCurrentSession] = useState(null)
   const [viewingSession, setViewingSession] = useState(null)
+  const [activeTab, setActiveTab] = useState('history')
+  const importRef = useRef(null)
 
   const handleSaveSession = useCallback((session) => {
     setSessions((prev) => {
@@ -54,6 +57,42 @@ export default function App() {
     setViewingSession(null)
   }, [])
 
+  const handleExport = useCallback(() => {
+    const data = JSON.stringify(sessions, null, 2)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `badminton-${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [sessions])
+
+  const handleImport = useCallback((e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target.result)
+        if (!Array.isArray(imported)) return alert('File không hợp lệ')
+        setSessions((prev) => {
+          const existingIds = new Set(prev.map((s) => s.id))
+          const merged = [...imported.filter((s) => !existingIds.has(s.id)), ...prev]
+          saveSessions(merged)
+          return merged
+        })
+        alert(`Đã import ${imported.length} phiên`)
+      } catch {
+        alert('Không đọc được file JSON')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }, [])
+
+  const inModal = currentSession || viewingSession
+
   return (
     <div className="app">
       <header className="app-header">
@@ -73,12 +112,42 @@ export default function App() {
           onBack={handleBack}
         />
       ) : (
-        <SessionHistory
-          sessions={sessions}
-          onNewSession={handleNewSession}
-          onView={setViewingSession}
-          onDelete={handleDeleteSession}
-        />
+        <>
+          <div className="tab-bar">
+            <button
+              className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+              onClick={() => setActiveTab('history')}
+            >
+              📋 Lịch sử
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'stats' ? 'active' : ''}`}
+              onClick={() => setActiveTab('stats')}
+            >
+              📊 Thống kê
+            </button>
+            <div className="tab-actions">
+              <button className="btn btn-outline btn-sm" onClick={handleExport} title="Xuất JSON">
+                ⬇ Export
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={() => importRef.current.click()} title="Nhập JSON">
+                ⬆ Import
+              </button>
+              <input ref={importRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
+            </div>
+          </div>
+
+          {activeTab === 'history' ? (
+            <SessionHistory
+              sessions={sessions}
+              onNewSession={handleNewSession}
+              onView={setViewingSession}
+              onDelete={handleDeleteSession}
+            />
+          ) : (
+            <Stats sessions={sessions} />
+          )}
+        </>
       )}
     </div>
   )

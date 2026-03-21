@@ -60,8 +60,8 @@ function PeoplePicker({ selected, onToggle }) {
   )
 }
 
-function EntryForm({ onAdd, lastPeople, lastPayer }) {
-  const [type, setType] = useState('san')
+function EntryForm({ onAdd, lastPeople, lastPayer, lastType }) {
+  const [type, setType] = useState(lastType)
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [people, setPeople] = useState(lastPeople)
@@ -154,16 +154,118 @@ function EntryForm({ onAdd, lastPeople, lastPayer }) {
   )
 }
 
+function EditingRow({ entry, onSave, onCancel }) {
+  const [amount, setAmount] = useState(String(entry.amount))
+  const [payer, setPayer] = useState(entry.payer)
+  const [people, setPeople] = useState(entry.people)
+
+  const perPerson = people.length > 0 && Number(amount) > 0
+    ? Math.round(Number(amount) * 1000 / people.length)
+    : 0
+
+  const handleSave = () => {
+    const numAmount = Number(amount)
+    if (numAmount <= 0 || people.length === 0) return
+    onSave({ ...entry, amount: numAmount, payer, people: [...people] })
+  }
+
+  return (
+    <>
+      <tr className="editing-row">
+        <td>
+          <span className={`type-badge ${entry.type}`}>
+            {getEntryLabel(entry)}
+          </span>
+        </td>
+        <td>
+          <select
+            value={payer}
+            onChange={(e) => setPayer(e.target.value)}
+            style={{ fontSize: '0.82rem', padding: '3px 6px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {PLAYERS.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </td>
+        <td>
+          <input
+            type="number"
+            min="1"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            style={{ fontSize: '0.82rem', padding: '3px 6px', width: '90px' }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </td>
+        <td colSpan={2} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+          {perPerson > 0 && (
+            <span style={{ color: 'var(--success)', fontWeight: 500 }}>
+              {formatMoney(perPerson)}/người
+            </span>
+          )}
+        </td>
+        <td></td>
+      </tr>
+      <tr className="editing-people-row">
+        <td colSpan={6}>
+          <div style={{ paddingBottom: '8px' }}>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 500 }}>
+              Người chơi:
+            </div>
+            <div className="people-picker" style={{ marginBottom: '8px' }}>
+              {PLAYERS.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={`people-chip ${people.includes(name) ? 'selected' : ''}`}
+                  style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                  onClick={() =>
+                    setPeople((prev) =>
+                      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+                    )
+                  }
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleSave}
+                disabled={!amount || Number(amount) <= 0 || people.length === 0}
+              >
+                ✓ Lưu
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={onCancel}>
+                Hủy
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </>
+  )
+}
+
 export default function SessionForm({ session, onSave, onCancel }) {
   const [date, setDate] = useState(session.date || new Date().toISOString().split('T')[0])
   const [entries, setEntries] = useState(session.entries || [])
+  const [editingId, setEditingId] = useState(null)
   const [lastPeople, setLastPeople] = useState([])
   const [lastPayer, setLastPayer] = useState(DEFAULT_PAYER)
+  const [lastType, setLastType] = useState('san')
 
   const handleAddEntry = useCallback((entry) => {
     setLastPeople(entry.people)
     setLastPayer(entry.payer)
+    setLastType(entry.type)
     setEntries((prev) => [...prev, entry])
+  }, [])
+
+  const handleUpdateEntry = useCallback((updated) => {
+    setEntries((prev) => prev.map((e) => e.id === updated.id ? updated : e))
+    setEditingId(null)
   }, [])
 
   const handleRemoveEntry = useCallback((id) => {
@@ -199,7 +301,7 @@ export default function SessionForm({ session, onSave, onCancel }) {
 
       <div className="card">
         <div className="card-title">💰 Thêm khoản chi</div>
-        <EntryForm key={entries.length} onAdd={handleAddEntry} lastPeople={lastPeople} lastPayer={lastPayer} />
+        <EntryForm key={entries.length} onAdd={handleAddEntry} lastPeople={lastPeople} lastPayer={lastPayer} lastType={lastType} />
       </div>
 
       {entries.length > 0 && (
@@ -222,8 +324,23 @@ export default function SessionForm({ session, onSave, onCancel }) {
               <tbody>
                 {entries.map((entry) => {
                   const perPerson = entry.amount / entry.people.length
+                  if (editingId === entry.id) {
+                    return (
+                      <EditingRow
+                        key={entry.id}
+                        entry={entry}
+                        onSave={handleUpdateEntry}
+                        onCancel={() => setEditingId(null)}
+                      />
+                    )
+                  }
                   return (
-                    <tr key={entry.id}>
+                    <tr
+                      key={entry.id}
+                      className="entry-editable-row"
+                      onClick={() => setEditingId(entry.id)}
+                      title="Bấm để chỉnh sửa"
+                    >
                       <td>
                         <span className={`type-badge ${entry.type}`}>
                           {getEntryLabel(entry)}
@@ -242,7 +359,7 @@ export default function SessionForm({ session, onSave, onCancel }) {
                       <td>
                         <button
                           className="btn btn-danger btn-sm"
-                          onClick={() => handleRemoveEntry(entry.id)}
+                          onClick={(e) => { e.stopPropagation(); handleRemoveEntry(entry.id) }}
                         >
                           ✕
                         </button>
