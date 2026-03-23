@@ -55,6 +55,18 @@ body {
   opacity: 0.85;
 }
 
+.db-badge {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+.db-loading { background: rgba(255,255,255,0.2); }
+.db-ready   { background: rgba(0,200,80,0.25); }
+.db-error   { background: rgba(255,80,80,0.3); }
+
 /* Card */
 .card {
   background: var(--card-bg);

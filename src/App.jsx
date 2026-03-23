@@ -1,8 +1,9 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import SessionForm from './components/SessionForm'
 import SessionResult from './components/SessionResult'
 import SessionHistory from './components/SessionHistory'
 import Stats from './components/Stats'
+import * as mongoApi from './services/mongoApi'
 
 const STORAGE_KEY = 'badminton-sessions'
 
@@ -24,7 +25,33 @@ export default function App() {
   const [currentSession, setCurrentSession] = useState(null)
   const [viewingSession, setViewingSession] = useState(null)
   const [activeTab, setActiveTab] = useState('history')
+  const [dbStatus, setDbStatus] = useState(mongoApi.isConfigured ? 'loading' : 'offline')
   const importRef = useRef(null)
+
+  // Tải dữ liệu từ MongoDB khi app khởi động
+  useEffect(() => {
+    if (!mongoApi.isConfigured) return
+    setDbStatus('loading')
+    mongoApi.getAllSessions()
+      .then((docs) => {
+        // Nếu DB còn trống nhưng localStorage có data → migrate lên DB
+        if (docs.length === 0) {
+          const local = loadSessions()
+          if (local.length > 0) {
+            mongoApi.importSessions(local).catch(console.error)
+            setDbStatus('ready')
+            return
+          }
+        }
+        setSessions(docs)
+        saveSessions(docs) // giữ localStorage làm cache offline
+        setDbStatus('ready')
+      })
+      .catch((err) => {
+        console.error('MongoDB load error:', err)
+        setDbStatus('error')
+      })
+  }, [])
 
   const handleSaveSession = useCallback((session) => {
     setSessions((prev) => {
@@ -34,6 +61,9 @@ export default function App() {
     })
     setCurrentSession(null)
     setViewingSession(session)
+    if (mongoApi.isConfigured) {
+      mongoApi.insertSession(session).catch(console.error)
+    }
   }, [])
 
   const handleDeleteSession = useCallback((id) => {
@@ -44,6 +74,9 @@ export default function App() {
     })
     if (viewingSession?.id === id) {
       setViewingSession(null)
+    }
+    if (mongoApi.isConfigured) {
+      mongoApi.removeSession(id).catch(console.error)
     }
   }, [viewingSession])
 
@@ -78,8 +111,12 @@ export default function App() {
         if (!Array.isArray(imported)) return alert('File không hợp lệ')
         setSessions((prev) => {
           const existingIds = new Set(prev.map((s) => s.id))
-          const merged = [...imported.filter((s) => !existingIds.has(s.id)), ...prev]
+          const newOnes = imported.filter((s) => !existingIds.has(s.id))
+          const merged = [...newOnes, ...prev]
           saveSessions(merged)
+          if (mongoApi.isConfigured && newOnes.length) {
+            mongoApi.importSessions(newOnes).catch(console.error)
+          }
           return merged
         })
         alert(`Đã import ${imported.length} phiên`)
@@ -98,6 +135,9 @@ export default function App() {
       <header className="app-header">
         <h1>🏸 Tính tiền cầu lông</h1>
         <p>Chia tiền sân, cầu, trà đá, cơm</p>
+        {dbStatus === 'loading' && <span className="db-badge db-loading">⏳ Đang kết nối DB…</span>}
+        {dbStatus === 'ready'   && <span className="db-badge db-ready">🟢 MongoDB</span>}
+        {dbStatus === 'error'   && <span className="db-badge db-error">🔴 Lỗi kết nối DB</span>}
       </header>
 
       {currentSession ? (
