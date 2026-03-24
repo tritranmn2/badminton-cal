@@ -49,6 +49,27 @@ app.delete('/api/sessions/:id', async (req, res) => {
     await sessions.deleteOne({ id: req.params.id })
     res.json({ ok: true })
   } catch (err) {
+    
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Cập nhật 1 session theo id
+app.put('/api/sessions/:id', async (req, res) => {
+  try {
+    const id = req.params.id
+    const doc = { ...req.body, id }
+    const result = await sessions.updateOne(
+      { id },
+      { $set: doc },
+    )
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'Session không tồn tại' })
+    }
+
+    res.json({ ok: true })
+  } catch (err) {
     res.status(500).json({ error: err.message })
   }
 })

@@ -326,6 +326,18 @@ select:focus {
   flex-wrap: wrap;
 }
 
+.result-top-actions {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  margin-bottom: 12px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: rgba(248, 250, 252, 0.92);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border);
+}
+
 /* Empty state */
 .empty-state {
   text-align: center;
@@ -394,6 +406,54 @@ select:focus {
 /* Transfer target highlight */
 .transfer-target-row {
   background: #eff6ff;
+}
+
+/* Custom settle checkbox */
+.settle-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.settle-toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.settle-toggle-box {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 2px solid #cbd5e1;
+  background: #ffffff;
+  color: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  line-height: 1;
+  font-weight: 700;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.05);
+}
+
+.settle-toggle:hover .settle-toggle-box {
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.settle-toggle-input:checked + .settle-toggle-box {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+.settle-toggle-input:focus-visible + .settle-toggle-box {
+  outline: 3px solid rgba(37, 99, 235, 0.25);
+  outline-offset: 2px;
 }
 
 /* Inline editable entry rows */
@@ -469,6 +529,55 @@ select:focus {
 .history-summary {
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.stats-member-name {
+  margin-right: 8px;
+}
+
+.stats-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.stats-rank-badge.rank-diamond {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.stats-rank-badge.rank-gold {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.stats-rank-badge.rank-silver {
+  background: #fef9c3;
+  color: #ca8a04;
+}
+
+.stats-total-cell {
+  font-weight: 700;
+}
+
+.stats-total-cell.stats-total-rank-diamond {
+  color: #dc2626;
+  font-weight: 900;
+}
+
+.stats-total-cell.stats-total-rank-gold {
+  color: #2563eb;
+  font-weight: 900;
+}
+
+.stats-total-cell.stats-total-rank-silver {
+  color: #ca8a04;
+  font-weight: 900;
 }
 
 /* Responsive */

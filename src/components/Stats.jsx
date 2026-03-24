@@ -34,9 +34,17 @@ function formatMonth(ym) {
   return `Tháng ${parseInt(m)}/${y}`
 }
 
+function getMonthlyRank(index) {
+  if (index === 0) return { icon: '💎', label: 'Kim cương', className: 'rank-diamond' }
+  if (index === 1) return { icon: '🥇', label: 'Vàng', className: 'rank-gold' }
+  if (index === 2) return { icon: '🥈', label: 'Bạc', className: 'rank-silver' }
+  return null
+}
+
 export default function Stats({ sessions }) {
   const [filterType, setFilterType] = useState('month')
   const [filterValue, setFilterValue] = useState('')
+  const isMonthlyView = filterType === 'month'
 
   const monthOptions = useMemo(() => getMonthOptions(sessions), [sessions])
 
@@ -138,15 +146,27 @@ export default function Stats({ sessions }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
-                  <tr key={row.name}>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{i + 1}</td>
-                    <td style={{ fontWeight: 600 }}>{row.name}</td>
-                    <td>{formatMoney(Math.round(row.sport * 1000))}</td>
-                    <td>{row.food > 0 ? formatMoney(Math.round(row.food * 1000)) : <span style={{ color: 'var(--text-secondary)' }}>—</span>}</td>
-                    <td style={{ fontWeight: 700 }}>{formatMoney(Math.round(row.total * 1000))}</td>
-                  </tr>
-                ))}
+                {rows.map((row, i) => {
+                  const rankInfo = isMonthlyView ? getMonthlyRank(i) : null
+                  return (
+                    <tr key={row.name}>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{i + 1}</td>
+                      <td style={{ fontWeight: 600 }}>
+                        <span className="stats-member-name">{row.name}</span>
+                        {rankInfo && (
+                          <span className={`stats-rank-badge ${rankInfo.className}`}>
+                            {rankInfo.icon} {rankInfo.label}
+                          </span>
+                        )}
+                      </td>
+                      <td>{formatMoney(Math.round(row.sport * 1000))}</td>
+                      <td>{row.food > 0 ? formatMoney(Math.round(row.food * 1000)) : <span style={{ color: 'var(--text-secondary)' }}>—</span>}</td>
+                      <td className={`stats-total-cell ${rankInfo ? `stats-total-${rankInfo.className}` : ''}`}>
+                        {formatMoney(Math.round(row.total * 1000))}
+                      </td>
+                    </tr>
+                  )
+                })}
                 <tr className="result-total">
                   <td colSpan={2}>Tổng cộng</td>
                   <td>{formatMoney(Math.round(sumSport * 1000))}</td>

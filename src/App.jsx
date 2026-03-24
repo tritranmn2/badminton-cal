@@ -80,6 +80,20 @@ export default function App() {
     }
   }, [viewingSession])
 
+  const handleUpdateSession = useCallback((updatedSession) => {
+    setSessions((prev) => {
+      const next = prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
+      saveSessions(next)
+      return next
+    })
+
+    setViewingSession((prev) => (prev?.id === updatedSession.id ? updatedSession : prev))
+
+    if (mongoApi.isConfigured) {
+      mongoApi.updateSession(updatedSession).catch(console.error)
+    }
+  }, [])
+
   const handleNewSession = useCallback(() => {
     setCurrentSession({ id: crypto.randomUUID(), date: '', entries: [] })
     setViewingSession(null)
@@ -128,17 +142,17 @@ export default function App() {
     e.target.value = ''
   }, [])
 
-  const inModal = currentSession || viewingSession
-
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>🏸 Tính tiền cầu lông</h1>
-        <p>Chia tiền sân, cầu, trà đá, cơm</p>
-        {dbStatus === 'loading' && <span className="db-badge db-loading">⏳ Đang kết nối DB…</span>}
-        {dbStatus === 'ready'   && <span className="db-badge db-ready">🟢 MongoDB</span>}
-        {dbStatus === 'error'   && <span className="db-badge db-error">🔴 Lỗi kết nối DB</span>}
-      </header>
+      {!viewingSession && (
+        <header className="app-header">
+          <h1>🏸 Tính tiền cầu lông</h1>
+          <p>Chia tiền sân, cầu, trà đá, cơm</p>
+          {dbStatus === 'loading' && <span className="db-badge db-loading">⏳ Đang kết nối DB…</span>}
+          {dbStatus === 'ready'   && <span className="db-badge db-ready">🟢 MongoDB</span>}
+          {dbStatus === 'error'   && <span className="db-badge db-error">🔴 Lỗi kết nối DB</span>}
+        </header>
+      )}
 
       {currentSession ? (
         <SessionForm
@@ -150,6 +164,7 @@ export default function App() {
         <SessionResult
           session={viewingSession}
           onBack={handleBack}
+          onUpdateSession={handleUpdateSession}
         />
       ) : (
         <>

@@ -1,11 +1,15 @@
 // API client – gọi qua Express server (server.js)
-// Dev: Vite proxy /api → localhost:3001
+// Dev: gọi trực tiếp backend, mặc định localhost:3002
 // Production: Express serve cả frontend lẫn API
 
 export const isConfigured = true
 
+const API_BASE = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002/api')
+  : '/api'
+
 async function api(method, path, body) {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -30,6 +34,11 @@ export async function insertSession(session) {
 /** Xoá một session theo id */
 export async function removeSession(id) {
   return api('DELETE', `/sessions/${id}`)
+}
+
+/** Cập nhật một session */
+export async function updateSession(session) {
+  return api('PUT', `/sessions/${session.id}`, session)
 }
 
 /** Bulk insert (dùng khi import JSON) */
