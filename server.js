@@ -17,6 +17,8 @@ const client = new MongoClient(process.env.MONGODB_URI)
 await client.connect()
 const db = client.db('badminton')
 const sessions = db.collection('sessions')
+const players = db.collection('players')
+const expenseTypes = db.collection('expense_types')
 console.log('✅ Kết nối MongoDB thành công')
 
 // ── API routes ──────────────────────────────────────────────
@@ -38,6 +40,83 @@ app.post('/api/sessions', async (req, res) => {
     const doc = { ...req.body, createdAt: req.body.createdAt || new Date().toISOString() }
     await sessions.insertOne(doc)
     res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Lấy danh sách tên người chơi
+app.get('/api/players', async (req, res) => {
+  try {
+    const docs = await players.find({}).sort({ _id: 1 }).toArray()
+    res.json(docs.map((doc) => doc._id))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Bulk upsert danh sách tên người chơi (key chính là tên)
+app.post('/api/players/bulk', async (req, res) => {
+  try {
+    const names = [...new Set((req.body || []).map((name) => String(name || '').trim()).filter(Boolean))]
+    if (names.length === 0) {
+      return res.json({ ok: true, inserted: 0 })
+    }
+
+    await players.bulkWrite(
+      names.map((name) => ({
+        updateOne: {
+          filter: { _id: name },
+          update: { $setOnInsert: { _id: name, name } },
+          upsert: true,
+        },
+      }))
+    )
+
+    res.json({ ok: true, upserted: names.length })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Lấy danh sách loại chi phí
+app.get('/api/expense-types', async (req, res) => {
+  try {
+    const docs = await expenseTypes.find({}).sort({ label: 1 }).toArray()
+    res.json(docs.map(({ _id, ...rest }) => rest))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Bulk upsert danh sách loại chi phí (key chính là value)
+app.post('/api/expense-types/bulk', async (req, res) => {
+  try {
+    const types = [...new Map((req.body || [])
+      .map((type) => ({
+        value: String(type?.value || '').trim(),
+        label: String(type?.label || '').trim(),
+        emoji: String(type?.emoji || '🧾').trim() || '🧾',
+      }))
+      .filter((type) => type.value && type.label)
+      .map((type) => [type.value, type]))
+      .values()]
+
+    if (types.length === 0) {
+      return res.json({ ok: true, upserted: 0 })
+    }
+
+    await expenseTypes.bulkWrite(
+      types.map((type) => ({
+        updateOne: {
+          filter: { _id: type.value },
+          update: { $setOnInsert: { _id: type.value, ...type } },
+          upsert: true,
+        },
+      }))
+    )
+
+    res.json({ ok: true, upserted: types.length })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { PLAYERS, formatMoney } from '../constants'
+import { formatMoney, sortPlayerNames } from '../constants'
 
 function calcStats(sessions) {
   const stats = {}
@@ -57,8 +57,7 @@ export default function Stats({ sessions }) {
 
   const stats = useMemo(() => calcStats(filteredSessions), [filteredSessions])
 
-  const rows = PLAYERS
-    .filter((name) => stats[name])
+  const rows = sortPlayerNames(Object.keys(stats))
     .map((name) => ({
       name,
       sport: stats[name].sport,

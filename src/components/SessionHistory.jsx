@@ -1,6 +1,6 @@
-import { EXPENSE_TYPES, formatMoney, calculateTotals, getEntryLabel } from '../constants'
+import { formatMoney, calculateTotals, getEntryLabel } from '../constants'
 
-export default function SessionHistory({ sessions, onNewSession, onView, onDelete }) {
+export default function SessionHistory({ sessions, expenseTypes, onNewSession, onView, onDelete }) {
   return (
     <div>
       <div style={{ marginBottom: '16px' }}>
@@ -43,7 +43,7 @@ export default function SessionHistory({ sessions, onNewSession, onView, onDelet
                     month: '2-digit',
                   })
 
-                  const details = session.entries.map((e) => getEntryLabel(e)).join(', ')
+                  const details = session.entries.map((e) => getEntryLabel(e, expenseTypes)).join(', ')
 
                   return (
                     <tr
@@ -61,7 +61,7 @@ export default function SessionHistory({ sessions, onNewSession, onView, onDelet
                       </td>
                       <td>
                         <button
-                          className="btn btn-danger btn-sm"
+                          className="btn btn-danger-soft btn-sm"
                           onClick={(e) => {
                             e.stopPropagation()
                             if (window.confirm('Xóa phiên đánh này?')) {
@@ -69,7 +69,7 @@ export default function SessionHistory({ sessions, onNewSession, onView, onDelet
                             }
                           }}
                         >
-                          🗑️
+                          <span className="btn-icon" aria-hidden="true">✕</span>
                         </button>
                       </td>
                     </tr>

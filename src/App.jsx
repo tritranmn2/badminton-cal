@@ -4,6 +4,7 @@ import SessionResult from './components/SessionResult'
 import SessionHistory from './components/SessionHistory'
 import Stats from './components/Stats'
 import * as mongoApi from './services/mongoApi'
+import { DEFAULT_EXPENSE_TYPES, getSessionPeople, sortExpenseTypes, sortPlayerNames } from './constants'
 
 const STORAGE_KEY = 'badminton-sessions'
 
@@ -22,29 +23,82 @@ function saveSessions(sessions) {
 
 export default function App() {
   const [sessions, setSessions] = useState(loadSessions)
+  const [playerNames, setPlayerNames] = useState([])
+  const [expenseTypes, setExpenseTypes] = useState(DEFAULT_EXPENSE_TYPES)
   const [currentSession, setCurrentSession] = useState(null)
   const [viewingSession, setViewingSession] = useState(null)
   const [activeTab, setActiveTab] = useState('history')
   const [dbStatus, setDbStatus] = useState(mongoApi.isConfigured ? 'loading' : 'offline')
   const importRef = useRef(null)
 
+  const persistPlayerNames = useCallback((names) => {
+    if (!names.length) return
+    const nextNames = sortPlayerNames(names)
+    setPlayerNames((prev) => sortPlayerNames([...prev, ...nextNames]))
+    if (mongoApi.isConfigured) {
+      mongoApi.upsertPlayers(nextNames).catch(console.error)
+    }
+  }, [])
+
+  const extractNamesFromSession = useCallback((session) => {
+    return getSessionPeople([session])
+  }, [])
+
+  const handleAddPlayerName = useCallback((name) => {
+    persistPlayerNames([name])
+  }, [persistPlayerNames])
+
+  const persistExpenseTypes = useCallback((types) => {
+    if (!types.length) return
+    const nextTypes = sortExpenseTypes(types)
+    setExpenseTypes((prev) => sortExpenseTypes([...prev, ...nextTypes]))
+    if (mongoApi.isConfigured) {
+      mongoApi.upsertExpenseTypes(nextTypes).catch(console.error)
+    }
+  }, [])
+
+  const handleAddExpenseType = useCallback((type) => {
+    persistExpenseTypes([type])
+  }, [persistExpenseTypes])
+
   // Tải dữ liệu từ MongoDB khi app khởi động
   useEffect(() => {
     if (!mongoApi.isConfigured) return
     setDbStatus('loading')
-    mongoApi.getAllSessions()
-      .then((docs) => {
-        // Nếu DB còn trống nhưng localStorage có data → migrate lên DB
-        if (docs.length === 0) {
-          const local = loadSessions()
-          if (local.length > 0) {
-            mongoApi.importSessions(local).catch(console.error)
-            setDbStatus('ready')
-            return
-          }
+    Promise.allSettled([mongoApi.getAllSessions(), mongoApi.getAllPlayers(), mongoApi.getAllExpenseTypes()])
+      .then(([sessionsResult, namesResult, typesResult]) => {
+        const localSessions = loadSessions()
+        const docs = sessionsResult.status === 'fulfilled' ? sessionsResult.value : []
+        const names = namesResult.status === 'fulfilled' ? namesResult.value : []
+        const types = typesResult.status === 'fulfilled' ? typesResult.value : []
+        const resolvedSessions = docs.length > 0 ? docs : localSessions
+
+        if (docs.length === 0 && localSessions.length > 0) {
+          mongoApi.importSessions(localSessions).catch(console.error)
         }
-        setSessions(docs)
-        saveSessions(docs) // giữ localStorage làm cache offline
+
+        setSessions(resolvedSessions)
+        saveSessions(resolvedSessions)
+
+        const derivedNames = getSessionPeople(resolvedSessions)
+        const resolvedNames = sortPlayerNames([...names, ...derivedNames])
+        setPlayerNames(resolvedNames)
+
+        if (names.length === 0 && derivedNames.length > 0) {
+          mongoApi.upsertPlayers(derivedNames).catch(console.error)
+        }
+
+        const resolvedTypes = sortExpenseTypes([...DEFAULT_EXPENSE_TYPES, ...types])
+        setExpenseTypes(resolvedTypes)
+
+        if (types.length === 0) {
+          mongoApi.upsertExpenseTypes(DEFAULT_EXPENSE_TYPES).catch(console.error)
+        }
+
+        if (sessionsResult.status === 'rejected' && namesResult.status === 'rejected' && typesResult.status === 'rejected') {
+          throw sessionsResult.reason || namesResult.reason
+        }
+
         setDbStatus('ready')
       })
       .catch((err) => {
@@ -54,17 +108,25 @@ export default function App() {
   }, [])
 
   const handleSaveSession = useCallback((session) => {
+    const isExisting = sessions.some((item) => item.id === session.id)
+    persistPlayerNames(extractNamesFromSession(session))
     setSessions((prev) => {
-      const next = [session, ...prev]
+      const next = isExisting
+        ? prev.map((item) => (item.id === session.id ? session : item))
+        : [session, ...prev]
       saveSessions(next)
       return next
     })
     setCurrentSession(null)
     setViewingSession(session)
     if (mongoApi.isConfigured) {
-      mongoApi.insertSession(session).catch(console.error)
+      if (isExisting) {
+        mongoApi.updateSession(session).catch(console.error)
+      } else {
+        mongoApi.insertSession(session).catch(console.error)
+      }
     }
-  }, [])
+  }, [extractNamesFromSession, persistPlayerNames, sessions])
 
   const handleDeleteSession = useCallback((id) => {
     setSessions((prev) => {
@@ -81,6 +143,7 @@ export default function App() {
   }, [viewingSession])
 
   const handleUpdateSession = useCallback((updatedSession) => {
+    persistPlayerNames(extractNamesFromSession(updatedSession))
     setSessions((prev) => {
       const next = prev.map((s) => (s.id === updatedSession.id ? updatedSession : s))
       saveSessions(next)
@@ -92,7 +155,7 @@ export default function App() {
     if (mongoApi.isConfigured) {
       mongoApi.updateSession(updatedSession).catch(console.error)
     }
-  }, [])
+  }, [extractNamesFromSession, persistPlayerNames])
 
   const handleNewSession = useCallback(() => {
     setCurrentSession({ id: crypto.randomUUID(), date: '', entries: [] })
@@ -101,6 +164,11 @@ export default function App() {
 
   const handleBack = useCallback(() => {
     setCurrentSession(null)
+    setViewingSession(null)
+  }, [])
+
+  const handleEditSession = useCallback((session) => {
+    setCurrentSession(session)
     setViewingSession(null)
   }, [])
 
@@ -123,9 +191,10 @@ export default function App() {
       try {
         const imported = JSON.parse(ev.target.result)
         if (!Array.isArray(imported)) return alert('File không hợp lệ')
+        const existingIds = new Set(sessions.map((s) => s.id))
+        const newOnes = imported.filter((s) => !existingIds.has(s.id))
+        persistPlayerNames(getSessionPeople(newOnes))
         setSessions((prev) => {
-          const existingIds = new Set(prev.map((s) => s.id))
-          const newOnes = imported.filter((s) => !existingIds.has(s.id))
           const merged = [...newOnes, ...prev]
           saveSessions(merged)
           if (mongoApi.isConfigured && newOnes.length) {
@@ -157,14 +226,20 @@ export default function App() {
       {currentSession ? (
         <SessionForm
           session={currentSession}
+          names={playerNames}
+          expenseTypes={expenseTypes}
+          onAddPlayerName={handleAddPlayerName}
+          onAddExpenseType={handleAddExpenseType}
           onSave={handleSaveSession}
           onCancel={handleBack}
         />
       ) : viewingSession ? (
         <SessionResult
           session={viewingSession}
+          expenseTypes={expenseTypes}
           onBack={handleBack}
           onUpdateSession={handleUpdateSession}
+          onEditSession={handleEditSession}
         />
       ) : (
         <>
@@ -195,6 +270,7 @@ export default function App() {
           {activeTab === 'history' ? (
             <SessionHistory
               sessions={sessions}
+              expenseTypes={expenseTypes}
               onNewSession={handleNewSession}
               onView={setViewingSession}
               onDelete={handleDeleteSession}

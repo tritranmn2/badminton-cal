@@ -26,6 +26,16 @@ export async function getAllSessions() {
   return api('GET', '/sessions')
 }
 
+/** Lấy danh sách tên người chơi */
+export async function getAllPlayers() {
+  return api('GET', '/players')
+}
+
+/** Lấy danh sách loại chi phí */
+export async function getAllExpenseTypes() {
+  return api('GET', '/expense-types')
+}
+
 /** Lưu một session mới */
 export async function insertSession(session) {
   return api('POST', '/sessions', session)
@@ -45,4 +55,16 @@ export async function updateSession(session) {
 export async function importSessions(sessions) {
   if (!sessions.length) return
   return api('POST', '/sessions/bulk', sessions)
+}
+
+/** Bulk upsert danh sách tên người chơi */
+export async function upsertPlayers(names) {
+  if (!names.length) return
+  return api('POST', '/players/bulk', names)
+}
+
+/** Bulk upsert danh sách loại chi phí */
+export async function upsertExpenseTypes(types) {
+  if (!types.length) return
+  return api('POST', '/expense-types/bulk', types)
 }
